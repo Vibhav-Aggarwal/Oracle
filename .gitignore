@@ -1,0 +1,51 @@
+# Oracle Bot - Git Ignore
+
+# Environment
+.env
+*.env.local
+config/*.env
+!config/config.example.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+
+# State & Logs
+oracle_state.json
+oracle_metrics.json
+*.log
+/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Secrets (Never commit these!)
+*_secret*
+*_key*
+credentials.json
+secrets.json

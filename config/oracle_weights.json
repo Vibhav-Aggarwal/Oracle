@@ -1,0 +1,21 @@
+{
+  "weights": {
+    "rsi": -0.03,
+    "rsi_oversold": 0.5,
+    "macd_hist": 0.2,
+    "bb_position": -0.3,
+    "volume_ratio": 0.09243530353279503,
+    "funding_negative": 0.4,
+    "momentum_24h": 0.02,
+    "fear_greed": -0.01,
+    "bid_ask_imbalance": 0.3,
+    "bias": -0.38782348233602465
+  },
+  "stats": {
+    "trades": 24,
+    "win_rate": 0.3333333333333333,
+    "avg_win": 8.783389863472088,
+    "avg_loss": -7.211664434049921
+  },
+  "updated": "2025-12-22T05:54:45.925902"
+}

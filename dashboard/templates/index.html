@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle Trading Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo"><i class="ri-robot-2-fill"></i><span>Oracle Bot</span></div>
+            <!-- Mode Switcher -->
+            <div class="mode-switcher">
+                <button class="mode-btn paper active" id="mode-paper" onclick="switchMode('paper')">
+                    <span class="dot"></span> Paper
+                </button>
+                <button class="mode-btn live" id="mode-live" onclick="switchMode('live')">
+                    <span class="dot"></span> Live
+                </button>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-indicators">
+                <div class="status-item" id="bot-status"><span class="status-dot"></span><span>Bot</span></div>
+                <div class="status-item" id="data-status"><span class="status-dot"></span><span>Data</span></div>
+                <div class="status-item" id="healer-status"><span class="status-dot"></span><span>Healer</span></div>
+            </div>
+            <div class="last-update" id="last-update"><i class="ri-time-line"></i><span>--:--:--</span></div>
+        </div>
+    </header>
+    <main class="main-content">
+        <section class="stats-grid">
+            <div class="stat-card balance">
+                <div class="stat-icon"><i class="ri-wallet-3-fill"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Balance</span>
+                    <span class="stat-value" id="balance">$0.00</span>
+                    <span class="stat-change" id="balance-change">+0.00%</span>
+                </div>
+            </div>
+            <div class="stat-card pnl">
+                <div class="stat-icon"><i class="ri-funds-fill"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Total P&L</span>
+                    <span class="stat-value" id="total-pnl">$0.00</span>
+                    <span class="stat-change" id="pnl-trades">0 trades</span>
+                </div>
+            </div>
+            <div class="stat-card winrate">
+                <div class="stat-icon"><i class="ri-percent-fill"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Win Rate</span>
+                    <span class="stat-value" id="win-rate">0%</span>
+                    <span class="stat-change" id="profit-factor">PF: 0.00</span>
+                </div>
+            </div>
+            <div class="stat-card positions">
+                <div class="stat-icon"><i class="ri-stack-fill"></i></div>
+                <div class="stat-content">
+                    <span class="stat-label">Open Positions</span>
+                    <span class="stat-value" id="open-positions">0</span>
+                    <span class="stat-change" id="fees-paid">Fees: $0.00</span>
+                </div>
+            </div>
+        </section>
+        <section class="charts-section">
+            <div class="chart-card pnl-chart-card">
+                <div class="card-header"><h3><i class="ri-line-chart-fill"></i> P&L Performance</h3></div>
+                <div class="chart-container"><canvas id="pnlChart"></canvas></div>
+            </div>
+            <div class="chart-card distribution-chart-card">
+                <div class="card-header"><h3><i class="ri-pie-chart-fill"></i> Trade Distribution</h3></div>
+                <div class="chart-container small"><canvas id="distributionChart"></canvas></div>
+                <div class="chart-legend">
+                    <div class="legend-item wins"><span class="legend-color"></span><span>Wins: <strong id="wins-count">0</strong></span></div>
+                    <div class="legend-item losses"><span class="legend-color"></span><span>Losses: <strong id="losses-count">0</strong></span></div>
+                </div>
+            </div>
+        </section>
+        <section class="positions-section">
+            <div class="section-card">
+                <div class="card-header"><h3><i class="ri-exchange-funds-fill"></i> Active Positions</h3><span class="badge" id="positions-count">0</span></div>
+                <div class="table-container">
+                    <table class="data-table" id="positions-table">
+                        <thead><tr><th>Exchange</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Current</th><th>Size</th><th>P&L</th><th>SL / TP</th></tr></thead>
+                        <tbody id="positions-body"><tr class="empty-row"><td colspan="8">No active positions</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        <section class="history-section">
+            <div class="section-card">
+                <div class="card-header"><h3><i class="ri-history-fill"></i> Recent Trades</h3><button class="refresh-btn" onclick="refreshData()"><i class="ri-refresh-line"></i></button></div>
+                <div class="table-container">
+                    <table class="data-table" id="trades-table">
+                        <thead><tr><th>Time</th><th>Exchange</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Reason</th></tr></thead>
+                        <tbody id="trades-body"><tr class="empty-row"><td colspan="8">No trades yet</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+    <!-- Mode Switch Confirmation Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="warning-icon">⚠️</div>
+                <h3>Switch to Live Trading?</h3>
+            </div>
+            <div class="modal-body">
+                <p>You are about to switch to <strong>REAL MONEY</strong> trading mode.</p>
+                <p style="color:#ef4444;margin-top:12px">⚠️ This will use actual funds from your exchange accounts!</p>
+                <p style="font-size:13px;margin-top:16px;color:#6b7280">Make sure your API keys have trading permissions enabled.</p>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn confirm" onclick="confirmLiveMode()">🚀 Go Live</button>
+            </div>
+        </div>
+    </div>
+    <footer class="footer">
+        <div class="footer-left"><span>Oracle Bot v2.0</span><span class="separator">|</span><span id="mode-label">Paper Trading</span></div>
+        <div class="footer-right"><span id="server-time">--</span></div>
+    </footer>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
