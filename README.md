@@ -2,11 +2,22 @@
 
 > **Advanced Multi-Exchange Cryptocurrency Trading System**
 
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status: Active](https://img.shields.io/badge/Status-Active-green.svg)]()
 
 Oracle Bot is a sophisticated algorithmic trading system designed for cryptocurrency markets. It supports multiple exchanges, implements advanced technical analysis, and features a real-time web dashboard for monitoring and control.
+
+## Version History
+
+| Version | Date | Highlights |
+|---------|------|------------|
+| **2.1.0** | 2025-12-22 | Trend filter, ATR stops, 2% risk management |
+| 2.0.0 | 2025-12-21 | Dashboard, multi-exchange, auto-healer |
+| 1.0.0 | 2025-12-20 | Initial release |
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 ## Features
 
@@ -38,24 +49,39 @@ Oracle Bot is a sophisticated algorithmic trading system designed for cryptocurr
 ```
 Oracle/
 ├── src/
-│   ├── oracle_bot.py          # Main trading engine
+│   ├── oracle_bot.py          # Main trading engine (V2.1)
 │   ├── oracle_trader.py       # Trade execution logic
 │   ├── oracle_autohealer.py   # Auto-recovery and healing
-│   └── oracle_watchdog.py     # Process monitoring
+│   ├── oracle_watchdog.py     # Process monitoring
+│   ├── indicators/            # Technical analysis modules
+│   │   ├── indicators_v11.py  # Current (90+ indicators)
+│   │   ├── indicators_v9.py   # Squeeze momentum
+│   │   ├── indicators_v8.py   # Bollinger, RSI divergence
+│   │   └── indicators_v7.py   # Basic MACD, RSI
+│   └── sentiment/             # Sentiment analysis modules
+│       ├── sentiment_v11.py   # Current (Fear & Greed, FinBERT)
+│       ├── sentiment_v9.py    # Improved scoring
+│       └── sentiment_v8.py    # Basic news analysis
 ├── dashboard/
 │   ├── app.py                 # Flask web application
 │   ├── static/
-│   │   ├── css/style.css      # Dashboard styling
+│   │   ├── css/style.css      # Premium UI styling
 │   │   └── js/dashboard.js    # Real-time updates
 │   └── templates/
 │       └── index.html         # Dashboard UI
 ├── config/
 │   ├── oracle_weights.json    # Indicator weights
+│   ├── oracle_state.template.json  # State file template
 │   └── config.example.env     # Environment template
+├── versions/                  # Archived versions
+│   ├── v1/oracle_bot.py       # Initial release
+│   └── v2/oracle_bot.py       # Dashboard integration
 ├── docs/
 │   ├── SETUP.md               # Installation guide
-│   ├── CONFIGURATION.md       # Config reference
 │   └── API.md                 # API documentation
+├── CHANGELOG.md               # Version history
+├── VERSION                    # Current version number
+├── LICENSE                    # MIT License
 └── requirements.txt           # Python dependencies
 ```
 
