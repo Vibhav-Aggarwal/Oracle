@@ -58,7 +58,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("/home/vibhavaggarwal/oracle_bot.log"),
+        logging.FileHandler(os.getenv("ORACLE_LOG_FILE", "/home/vibhavaggarwal/oracle_bot.log")),
         logging.StreamHandler()
     ]
 )
