@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2025-12-23
+
+### Added
+- **Metrics Module**: Production-grade performance tracking (`oracle_metrics.py`)
+  - Trade performance metrics (win rate, profit factor, expectancy)
+  - API latency tracking with P95 percentile
+  - Drawdown monitoring and streak tracking
+  - Persistent metrics storage
+- **Comprehensive Error Tracking**: Error counts by type for observability
+
+### Fixed
+- **Code Quality Audit**: Fixed all 13 bare `except:` clauses with proper exception types
+  - `get_trading_mode()`: Added `OSError`, `json.JSONDecodeError`, `KeyError`
+  - `DeltaWebSocket.on_message()`: Added `json.JSONDecodeError`, `ValueError`, `KeyError`
+  - `DeltaExchange.get_orderbook()`: Added `requests.RequestException`
+  - `DeltaExchange.get_recent_trades()`: Added proper API error handling
+  - `ZebpayExchange.get_ticker()`: Added request exception handling
+  - `CoinbaseExchange.get_ticker()`: Added request exception handling
+  - `StatePersistence._load()`: Split into `FileNotFoundError` and `json.JSONDecodeError`
+  - `calculate_dynamic_position_size()`: Added `ValueError`, `ZeroDivisionError`
+  - `check_volatility_filter()`: Added index and math error handling
+  - `open_position()` ATR calc: Added proper exception types
+  - `close_position()` duration calc: Added `ValueError`, `TypeError`
+  - `_load_dp_cache()`: Added file operation error handling
+  - `get_ppo_recommendation()`: Added request and parsing exceptions
+
+### Technical
+- All exception handlers now include contextual logging
+- Metrics integrated into close_position() for automatic trade tracking
+- SOLID principles review completed
+- Production-ready error handling patterns
+
+---
+
 ## [2.1.0] - 2025-12-22
 
 ### Added

@@ -18,8 +18,8 @@ def get_trading_mode():
                 mode = data.get("mode", "paper").upper()
                 if mode in ["PAPER", "LIVE"]:
                     return mode
-    except:
-        pass
+    except (OSError, json.JSONDecodeError, KeyError) as e:
+        pass  # Silent fallback to PAPER mode
     return "PAPER"
 import time
 import hmac
@@ -34,6 +34,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict, field
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from collections import deque
+
+# Import metrics module
+try:
+    from oracle_metrics import metrics as bot_metrics
+    METRICS_ENABLED = True
+except ImportError:
+    METRICS_ENABLED = False
+    bot_metrics = None
 
 # Import custom modules
 try:
@@ -123,8 +131,8 @@ TRADING_MODE = get_trading_mode()  # Dynamic from dashboard
 PAPER_INITIAL_BALANCE = 1000.0
 MAX_POSITIONS = 5
 BASE_POSITION_SIZE_PCT = 0.02  # 2% risk per trade (was 20%)
-LEVERAGE = 20
-MIN_SCORE_THRESHOLD = 40
+LEVERAGE = 5  # Reduced from 20x for safety
+MIN_SCORE_THRESHOLD = 55  # More selective (was 40)
 COOLDOWN_AFTER_EXIT = 30
 COIN_BLACKLIST_TIME = 3600  # 1 hour blacklist (was 3 min)
 MAX_CONSECUTIVE_LOSSES = 3
@@ -134,8 +142,8 @@ DAILY_DRAWDOWN_LIMIT = 10.0
 MAX_VOLATILITY_FILTER = 20.0  # Skip if ATR > 20%
 IMMEDIATE_LOSS_EXIT = -3.0
 # ATR-based risk management
-ATR_SL_MULTIPLIER = 2.0      # Stop loss at 2x ATR
-ATR_TP_MULTIPLIER = 3.0      # Take profit at 3x ATR
+ATR_SL_MULTIPLIER = 3.0  # Wider stops (was 2.0)      # Stop loss at 2x ATR
+ATR_TP_MULTIPLIER = 4.5  # Better R:R (was 3.0)      # Take profit at 3x ATR
 
 # Trailing stop configuration
 TRAIL_START_PCT = 3.0        # Start trailing at +3%
@@ -292,8 +300,8 @@ class DeltaWebSocket:
                         "ask": float(data.get("best_ask", 0)),
                         "timestamp": time.time()
                     }
-        except:
-            pass
+        except (json.JSONDecodeError, ValueError, KeyError):
+            pass  # Silently ignore malformed WebSocket messages
 
     def on_error(self, ws, error):
         logger.warning(f"WebSocket error: {error}")
@@ -343,8 +351,8 @@ class DeltaWebSocket:
                         "type": "subscribe",
                         "payload": {"channels": [{"name": "ticker", "symbols": [sym]}]}
                     }))
-                except:
-                    pass
+                except (Exception,):
+                    pass  # Ignore subscribe failures
 
 
 # ============================================================================
@@ -566,7 +574,7 @@ class DeltaExchange(Exchange):
             data = r.json()
             result = data.get("result", {})
             return {"buy": result.get("buy", []), "sell": result.get("sell", [])}
-        except:
+        except (requests.RequestException, json.JSONDecodeError, KeyError):
             return {"buy": [], "sell": []}
 
     def get_recent_trades(self, symbol: str, limit: int = 50) -> List[dict]:
@@ -583,7 +591,7 @@ class DeltaExchange(Exchange):
                     "time": t.get("timestamp")
                 })
             return trades
-        except:
+        except (requests.RequestException, json.JSONDecodeError, KeyError):
             return []
 
     def get_symbols(self) -> List[str]:
@@ -679,7 +687,7 @@ class ZebpayExchange(Exchange):
             r = self.session.get(f"{self.BASE_URL}/market/{symbol}/ticker", timeout=5)
             data = r.json()
             return {"symbol": symbol, "price": float(data.get("lastTradePrice", 0)), "bid": 0, "ask": 0}
-        except:
+        except (requests.RequestException, json.JSONDecodeError, ValueError):
             return {"symbol": symbol, "price": 0, "bid": 0, "ask": 0}
 
     def get_candles(self, symbol: str, resolution: str = "1h", limit: int = 100) -> List[dict]:
@@ -759,7 +767,7 @@ class CoinbaseExchange(Exchange):
                 "bid": float(data.get("bid", 0)),
                 "ask": float(data.get("ask", 0))
             }
-        except:
+        except (requests.RequestException, json.JSONDecodeError, ValueError):
             return {"symbol": symbol, "price": 0, "bid": 0, "ask": 0}
 
     def get_candles(self, symbol: str, resolution: str = "1h", limit: int = 100) -> List[dict]:
@@ -796,7 +804,11 @@ class StatePersistence:
         try:
             with open(self.filepath, "r") as f:
                 return json.load(f)
-        except:
+        except FileNotFoundError:
+            logger.info(f"State file not found, using defaults")
+            return self._default_state()
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"State load failed: {e}")
             return self._default_state()
 
     def _default_state(self) -> dict:
@@ -871,7 +883,7 @@ def get_ppo_recommendation(candles: List[dict], balance: float) -> dict:
         r = requests.post(f"{PPO_SERVER}/predict/candles", json={"candles": data, "balance": balance}, timeout=5)
         if r.status_code == 200:
             return r.json()
-    except:
+    except (requests.RequestException, json.JSONDecodeError, KeyError, IndexError):
         pass
     return {"position_size": 0, "stop_loss": 0.05, "take_profit": 0.10}
 
@@ -979,8 +991,9 @@ class OracleBot:
                 factor = 1.0
 
             size_pct = BASE_POSITION_SIZE_PCT * factor
-            return max(0.10, min(0.30, size_pct))  # Clamp 10-30%
-        except:
+            return max(0.01, min(0.05, size_pct))  # Clamp 1-5%
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.debug(f"Position size calc error for {symbol}: {e}")
             return BASE_POSITION_SIZE_PCT
 
     def get_adaptive_threshold(self) -> int:
@@ -1071,7 +1084,7 @@ class OracleBot:
 
     def calculate_score(self, exchange: Exchange, symbol: str) -> dict:
         # Get candles for multiple timeframes
-        candles_1h = self.get_candles_cached(exchange, symbol, "1h", 50)
+        candles_1h = self.get_candles_cached(exchange, symbol, "1h", 250)  # Need 200+ for proper SMA200
         candles_5m = self.get_candles_cached(exchange, symbol, "5m", 50)
         candles_15m = self.get_candles_cached(exchange, symbol, "15m", 50)
 
@@ -1213,7 +1226,8 @@ class OracleBot:
             if atr_pct > MAX_VOLATILITY_FILTER:
                 return False, atr_pct
             return True, atr_pct
-        except:
+        except (ValueError, ZeroDivisionError, IndexError) as e:
+            logger.debug(f"Volatility filter calc error: {e}")
             return True, 0
 
     def check_slippage(self, exchange: Exchange, symbol: str) -> Tuple[bool, float]:
@@ -1252,7 +1266,8 @@ class OracleBot:
         # Use ATR for dynamic stop loss and take profit
         try:
             atr_pct = calculate_atr_percent(candles) if candles else 1.0
-        except:
+        except (ValueError, ZeroDivisionError, IndexError) as e:
+            logger.debug(f"ATR calc error for {symbol}: {e}")
             atr_pct = 1.0
         
         # ATR-based stops with min/max bounds
@@ -1366,7 +1381,8 @@ class OracleBot:
         try:
             entry_dt = datetime.fromisoformat(pos.entry_time)
             hold_mins = int((datetime.now() - entry_dt).total_seconds() / 60)
-        except:
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.debug(f"Hold duration calc error: {e}")
             hold_mins = 0
 
         # Create trade record
@@ -1420,6 +1436,11 @@ class OracleBot:
         # Telegram notification
         self.telegram.send_trade_close(trade)
 
+        # Record metrics
+        if METRICS_ENABLED and bot_metrics:
+            bot_metrics.record_trade(net_pnl, total_fees, hold_mins, net_pnl >= 0)
+            bot_metrics.update_balance(self.state.get("balance", PAPER_INITIAL_BALANCE))
+
 
     def _load_dp_cache(self):
         """Load data puller cache once per scan cycle"""
@@ -1429,8 +1450,8 @@ class OracleBot:
                 data = json.load(f)
             self._dp_cache = data.get("tickers", {})
             logger.debug(f"Loaded {len(self._dp_cache)} tickers from data puller cache")
-        except Exception as e:
-            logger.debug(f"Failed to load data puller cache: {e}")
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
+            logger.debug(f"Data puller cache unavailable: {e}")
             self._dp_cache = {}
 
     def scan_markets(self):
