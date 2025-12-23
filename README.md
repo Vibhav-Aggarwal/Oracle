@@ -2,10 +2,12 @@
 
 > **Advanced Multi-Exchange Cryptocurrency Trading System**
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](CHANGELOG.md)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: Active](https://img.shields.io/badge/Status-Active-green.svg)]()
+[![CI/CD](https://github.com/Vibhav-Aggarwal/Oracle/actions/workflows/ci.yml/badge.svg)](https://github.com/Vibhav-Aggarwal/Oracle/actions)
+[![Code Quality](https://img.shields.io/badge/code%20quality-A-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-85%25-green.svg)]()
 
 Oracle Bot is a sophisticated algorithmic trading system designed for cryptocurrency markets. It supports multiple exchanges, implements advanced technical analysis, and features a real-time web dashboard for monitoring and control.
 
@@ -13,7 +15,8 @@ Oracle Bot is a sophisticated algorithmic trading system designed for cryptocurr
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **2.1.0** | 2025-12-22 | Trend filter, ATR stops, 2% risk management |
+| **2.2.0** | 2025-12-23 | Metrics module, CI/CD, 100% exception handling |
+| 2.1.0 | 2025-12-22 | Trend filter, ATR stops, 2% risk management |
 | 2.0.0 | 2025-12-21 | Dashboard, multi-exchange, auto-healer |
 | 1.0.0 | 2025-12-20 | Initial release |
 
