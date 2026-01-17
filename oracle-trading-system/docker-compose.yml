@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  oracle-bot:
+    build: .
+    container_name: oracle-trading-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - oracle-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: oracle-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - oracle-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: oracle-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - oracle-network
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  oracle-network:
+    driver: bridge

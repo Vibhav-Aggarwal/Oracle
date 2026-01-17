@@ -1,0 +1,25 @@
+# Oracle Trading System - Production Dependencies
+# Python 3.11+ (Compatible with Intel Xeon X5450)
+
+# Core Trading
+requests>=2.31.0
+websocket-client>=1.6.0
+pandas>=2.0.0,<2.3.0
+numpy>=1.24.0,<2.0.0
+
+# Configuration & Validation
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Monitoring & Metrics
+prometheus-client>=0.19.0
+
+# Logging
+python-json-logger>=2.0.7
+
+# Security
+cryptography>=41.0.0
+
+# Database
+sqlalchemy>=2.0.0
