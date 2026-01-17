@@ -16,6 +16,7 @@ from .logger import setup_logging, TradeLogger
 from .exchange import DeltaExchangeClient
 from .strategy import OracleStrategy, Signal
 from .risk_manager import RiskManager, RiskAction, Position
+from .metrics import init_metrics, TradingMetrics
 
 __version__ = "2.0.0"
 
@@ -28,12 +29,19 @@ class OracleTradingEngine:
         self.exchange: Optional[DeltaExchangeClient] = None
         self.strategy: Optional[OracleStrategy] = None
         self.risk_manager: Optional[RiskManager] = None
+        self.metrics: Optional[TradingMetrics] = None
         self._running = False
         self._healthy = False
         self._last_heartbeat = datetime.utcnow()
         self._trade_count = 0
         self._start_time: Optional[datetime] = None
         self._shutdown_event = threading.Event()
+        self._wins = 0
+        self._losses = 0
+        self._consecutive_losses = 0
+        self._peak_balance = 0
+        self._total_pnl = 0
+        self._daily_pnl = 0
 
     def _setup_signal_handlers(self) -> None:
         def handler(signum, frame):
@@ -47,6 +55,10 @@ class OracleTradingEngine:
         self.logger.info(f"Oracle Trading Engine v{__version__}")
         self.logger.info("=" * 60)
         try:
+            # Initialize metrics server
+            self.logger.info("Initializing metrics server...")
+            self.metrics = init_metrics(port=self.config.monitoring.prometheus_port)
+
             self.logger.info("Initializing exchange client...")
             self.exchange = DeltaExchangeClient(
                 api_key=self.config.exchange.api_key,
@@ -61,6 +73,8 @@ class OracleTradingEngine:
             usdt = next((b for b in balances if b.asset == "USDT"), None)
             if usdt:
                 self.logger.info(f"Balance: ${usdt.available:.2f} USDT")
+                self._peak_balance = usdt.available
+                self.metrics.update_balance(usdt.available)
             self.logger.info("Initializing strategy...")
             self.strategy = OracleStrategy(self.config)
             self.logger.info("Initializing risk manager...")
@@ -77,13 +91,23 @@ class OracleTradingEngine:
     def _process_signal(self, symbol: str) -> None:
         if not self.strategy or not self.risk_manager:
             return
+        start_time = time.time()
         positions = self.risk_manager.get_positions()
         current = positions.get(symbol)
         side = current.side if current else None
         sig = self.strategy.generate_signal(symbol, side)
+
+        # Record signal latency
+        latency = time.time() - start_time
+        self.metrics.signal_latency.observe(latency)
+
         if sig.signal == Signal.HOLD:
             return
+
+        # Record signal generation
+        self.metrics.record_signal(symbol, sig.signal.value)
         self.trade_logger.log_signal(symbol, sig.signal.value, sig.indicators)
+
         if sig.signal in [Signal.LONG, Signal.SHORT]:
             self._execute_entry(sig)
         elif sig.signal in [Signal.EXIT_LONG, Signal.EXIT_SHORT]:
@@ -118,6 +142,11 @@ class OracleTradingEngine:
                 self.risk_manager.register_position(pos)
                 self.trade_logger.log_entry(symbol, side, entry, size, sig.reason, trade_id)
                 self._trade_count += 1
+
+                # Update metrics
+                positions_count = len(self.risk_manager.get_positions())
+                self.metrics.update_positions(positions_count)
+
                 self.logger.info(f"Opened {side.upper()} {symbol} @ {entry:.4f}")
         except Exception as e:
             self.logger.exception(f"Entry failed: {e}")
@@ -136,7 +165,28 @@ class OracleTradingEngine:
                     pnl = (exit_price - pos.entry_price) * pos.size
                 else:
                     pnl = (pos.entry_price - exit_price) * pos.size
+
+                # Update trade statistics
+                self._total_pnl += pnl
+                self._daily_pnl += pnl
+                if pnl > 0:
+                    self._wins += 1
+                    self._consecutive_losses = 0
+                else:
+                    self._losses += 1
+                    self._consecutive_losses += 1
+
+                # Record metrics
+                self.metrics.record_trade(symbol, pos.side, pnl)
+                win_rate = self._wins / (self._wins + self._losses) if (self._wins + self._losses) > 0 else 0
+                self.metrics.update_performance(win_rate, self._consecutive_losses)
+                self.metrics.update_pnl(self._daily_pnl, self._total_pnl)
+
+                # Update position count
                 self.risk_manager.close_position(symbol, exit_price, pnl, sig.reason)
+                positions_count = len(self.risk_manager.get_positions())
+                self.metrics.update_positions(positions_count)
+
                 self.trade_logger.log_exit(symbol, pos.trade_id, exit_price, pos.entry_price, pnl, sig.reason)
                 self.logger.info(f"Closed {symbol} @ {exit_price:.4f} PnL: {pnl:+.2f}")
         except Exception as e:
@@ -160,15 +210,38 @@ class OracleTradingEngine:
                 usdt = next((b for b in balances if b.asset == "USDT"), None)
                 if usdt:
                     self.risk_manager.update_equity(usdt.available)
+
+                    # Update metrics
+                    self.metrics.update_balance(usdt.available)
+                    if usdt.available > self._peak_balance:
+                        self._peak_balance = usdt.available
+
+                    # Calculate drawdown from peak
+                    if self._peak_balance > 0:
+                        drawdown = (self._peak_balance - usdt.available) / self._peak_balance
+                        # Track max drawdown separately
+                        if not hasattr(self, '_max_drawdown'):
+                            self._max_drawdown = 0
+                        self._max_drawdown = max(self._max_drawdown, drawdown)
+                        self.metrics.update_drawdown(drawdown, self._max_drawdown)
+
                 for symbol in symbols:
                     if self._shutdown_event.is_set():
                         break
                     self._process_signal(symbol)
+
+                # Update health metrics
+                uptime = (datetime.utcnow() - self._start_time).total_seconds() if self._start_time else 0
+                self.metrics.update_health(self._healthy, uptime)
+
                 self._last_heartbeat = datetime.utcnow()
                 self._shutdown_event.wait(60)
             except Exception as e:
                 self.logger.exception(f"Loop error: {e}")
+                self._healthy = False
+                self.metrics.update_health(False, 0)
                 time.sleep(10)
+                self._healthy = True
 
     def run(self) -> int:
         self._setup_signal_handlers()

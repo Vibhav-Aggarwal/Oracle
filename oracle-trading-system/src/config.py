@@ -70,21 +70,44 @@ class AlertConfig:
 
 
 @dataclass
+class MonitoringConfig:
+    """Monitoring and metrics configuration"""
+    prometheus_port: int = 8080
+    prometheus_enabled: bool = True
+    grafana_enabled: bool = False
+    grafana_url: str = ""
+
+
+@dataclass
+class TradingConfig:
+    """Trading settings"""
+    symbols: List[str] = field(default_factory=lambda: ["BTCUSDT"])
+    close_on_shutdown: bool = False
+
+
+@dataclass
+class LoggingConfig:
+    """Logging settings"""
+    log_dir: str = "/home/vibhavaggarwal/oracle-trading-system/logs"
+    level: str = "INFO"
+    json_format: bool = False
+
+
+@dataclass
 class Config:
     """Main configuration container"""
     environment: str = "development"
     debug: bool = False
-    log_level: str = "INFO"
     data_dir: str = "/home/vibhavaggarwal/oracle-trading-system/data"
-    log_dir: str = "/home/vibhavaggarwal/oracle-trading-system/logs"
-    
+
     exchange: ExchangeConfig = None
     strategy: StrategyConfig = None
     risk: RiskConfig = None
     alerts: AlertConfig = None
-    
-    symbols: List[str] = field(default_factory=lambda: ["BTCUSDT", "ETHUSDT", "BNBUSDT"])
-    
+    monitoring: MonitoringConfig = None
+    trading: TradingConfig = None
+    logging: LoggingConfig = None
+
     def __post_init__(self):
         if self.strategy is None:
             self.strategy = StrategyConfig()
@@ -92,6 +115,12 @@ class Config:
             self.risk = RiskConfig()
         if self.alerts is None:
             self.alerts = AlertConfig()
+        if self.monitoring is None:
+            self.monitoring = MonitoringConfig()
+        if self.trading is None:
+            self.trading = TradingConfig()
+        if self.logging is None:
+            self.logging = LoggingConfig()
 
 
 def load_config(config_path: Optional[str] = None) -> Config:
@@ -110,7 +139,10 @@ def load_config(config_path: Optional[str] = None) -> Config:
     # Override with environment variables
     config.environment = os.getenv("ORACLE_ENV", config.environment)
     config.debug = os.getenv("ORACLE_DEBUG", "false").lower() == "true"
-    config.log_level = os.getenv("ORACLE_LOG_LEVEL", config.log_level)
+
+    # Monitoring config
+    prometheus_port = os.getenv("PROMETHEUS_PORT", "8080")
+    config.monitoring.prometheus_port = int(prometheus_port)
     
     # Exchange config from environment
     api_key = os.getenv("DELTA_API_KEY", "")
