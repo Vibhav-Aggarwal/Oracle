@@ -55,6 +55,12 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan lab-server.vibhavaggarwal.com >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      - name: Wait Random Delay (Prevent Concurrent SSH)
+        run: |
+          DELAY=$((RANDOM % 30))
+          echo "Waiting ${DELAY}s to prevent concurrent deployments..."
+          sleep $DELAY
+
       - name: Deploy to Lab Server
         run: |
           ssh -o ProxyCommand="cloudflared access ssh --hostname lab-server.vibhavaggarwal.com --service-token-id 55df69f3b2ea04e12c30498a120b050b.access --service-token-secret c363a2caa502d2e0bdaddc7ddc1c26c6003d33517fef2712209ccb8b369a4af7" \
