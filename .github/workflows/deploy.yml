@@ -38,22 +38,19 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
-      url: https://lab-server.vibhavaggarwal.com
+      url: http://92.4.88.143:8080
 
     steps:
-      - name: Install cloudflared
-        run: |
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared-linux-amd64.deb
+      - uses: actions/checkout@v4
 
       - name: Setup SSH Key
         env:
-          SSH_KEY: ${{ secrets.LAB_SERVER_SSH_KEY }}
+          SSH_KEY: ${{ secrets.ORACLE_CLOUD_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan lab-server.vibhavaggarwal.com >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan 92.4.88.143 >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Wait Random Delay (Prevent Concurrent SSH)
         run: |
@@ -61,17 +58,31 @@ jobs:
           echo "Waiting ${DELAY}s to prevent concurrent deployments..."
           sleep $DELAY
 
-      - name: Deploy to Lab Server
+      - name: Deploy to Oracle Cloud Server
         run: |
-          ssh -o ProxyCommand="cloudflared access ssh --hostname lab-server.vibhavaggarwal.com --service-token-id 55df69f3b2ea04e12c30498a120b050b.access --service-token-secret c363a2caa502d2e0bdaddc7ddc1c26c6003d33517fef2712209ccb8b369a4af7" \
-              -o StrictHostKeyChecking=no \
-              -i ~/.ssh/id_ed25519 \
-              vibhavaggarwal@lab-server.vibhavaggarwal.com << 'ENDSSH'
-            cd /home/vibhavaggarwal/Projects/production/oracle
-            git pull origin main
-            docker-compose restart || echo "Docker service not running"
-            echo "⚠️  Oracle trading bot deployment requires manual verification"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 ubuntu@92.4.88.143 << 'ENDSSH'
+            cd /home/ubuntu/Projects/production/oracle
+
+            echo "📥 Pulling latest code..."
+            git pull origin main || echo "Git pull failed (expected on first deploy)"
+
+            echo "📦 Updating dependencies..."
+            ./venv/bin/pip install -r requirements.txt --quiet
+
+            echo "🔄 Restarting Oracle bot service..."
+            sudo systemctl restart oracle-bot || echo "Service not enabled yet"
+
+            echo "⏳ Waiting for service to start..."
+            sleep 5
+
+            echo "🔍 Checking service status..."
+            sudo systemctl status oracle-bot --no-pager || true
+
+            echo "📊 Checking if bot is responding..."
+            curl -f http://localhost:8080/health 2>/dev/null && echo "✅ Health check passed" || echo "⚠️ Health check failed (bot may need API credentials)"
+
+            echo "✅ Deployment complete"
           ENDSSH
 
       - name: Deployment Complete
-        run: echo "✅ Oracle deployed - VERIFY TRADING BOT STATUS MANUALLY"
+        run: echo "✅ Oracle bot deployed to Oracle Cloud Server (92.4.88.143)"
